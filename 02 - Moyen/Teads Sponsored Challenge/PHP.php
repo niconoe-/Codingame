@@ -2,109 +2,146 @@
 define('DEBUG', true);
 function debug() {if (!DEBUG) return; foreach (func_get_args() as $sArgDebug) error_log(var_export($sArgDebug, true));}
 
-$aPathes = array(); 
-// le nombre n de relations au total.
-fscanf(STDIN, "%d", $n);
-for ($i = 0; $i < $n; ++$i) {
-    $bAddedLink = false;
-    //$xi = l'identifiant d'une personne liée à yi
-    //$yi = l'identifiant d'une personne liée à xi
-    fscanf(STDIN, "%d %d", $xi, $yi);
-    
-    foreach ($aPathes as $indexPath => &$aPath) {
-        foreach ($aPath as $indexNode => $iNode) {
-            if ($iNode === $xi) {
-                if ($indexNode === count($aPath)-1) {
-                    //If $iNode is the end of the path, just add the $yi
-                    $aPath[] = $yi;
-                    //Link is done, so let's get out of here and proceed to the new link
-                    $bAddedLink = true;
-                    break 1; //Don't check the node we just add
-                } else {
-                    //Otherwise, create a new path from the matching one until the $xi and add the $yi
-                    $aNewPath = array_slice($aPath, 0, $indexNode+1);
-                    $aNewPath[] = $yi;
-                    $aPathes[] = $aNewPath;
-                    //Link is done, so let's get out of here and proceed to the new link
-                    $bAddedLink = true;
-                    break 2; //Don't check the path we just add
-                }
-            }
-            if ($iNode === $yi) {
-                if ($indexNode === 0) {
-                    //If $iNode is the start of the path, just add the $yi at the start
-                    array_unshift($aPath, $xi);
-                    //Link is done, so let's get out of here and proceed to the new link
-                    $bAddedLink = true;
-                    break 1; //Don't check the node we just add
-                } else {
-                    //Otherwise, create a new path from the matching one from the $yi and add the $xi before
-                    $aNewPath = array_slice($aPath, $indexNode);
-                    array_unshift($aNewPath, $xi);
-                    $aPathes[] = $aNewPath;
-                    //Link is done, so let's get out of here and proceed to the new link
-                    $bAddedLink = true;
-                    break 2; //Don't check the path we just add
-                }
-            }
-        }
-    } unset($aPath);
-    //if $xi and $yi not found in any path, add a new path
-    if (!$bAddedLink) {
-        $aPathes[] = array($xi, $yi);
-    }
-    
-    // if the two firsts nodes of a path matches the two lasts nodes of another path, merge them
-    $aPathes = merge_pathes($aPathes);
-}
-
-function merge_pathes($aPathes)
+class NodeStatus
 {
-    $aNewPathes = array();
-    $aCopyPathes = $aPathes;
-    $aFirsts = array();
-    $aLasts = array();
-    $aIndexToRemove = array();
-    foreach ($aCopyPathes as $indexPath => $aPath) {
-        $aFirsts[$indexPath] = array_slice($aPath, 0, 2);
-        $aLasts[$indexPath] = array_slice($aPath, -2);
+    public $bEnded;
+    public $iDepth;
+    
+    public function __construct($bEnded = false, $iDepth = 1)
+    {
+        $this->bEnded = $bEnded;
+        $this->iDepth = $iDepth;
     }
-    foreach ($aFirsts as $indexPathFirst => $aFirst) {
-        foreach ($aLasts as $indexPathLast => $aLast) {
-            if ($aFirst === $aLast) {
-                $aIndexToRemove[] = $indexPathFirst;
-                $aIndexToRemove[] = $indexPathLast;
-                $aNewPathes[] = array_merge(
-                    array_slice($aCopyPathes[$indexPathLast], 0, -2),
-                    $aFirst,
-                    array_slice($aCopyPathes[$indexPathFirst], 2)
-                );
+    
+    public function isEnd()
+    {
+        return $this->bEnded;
+    }
+    
+    public static function findLongest($aNodesStatuses)
+    {
+        $iMax = 0;
+        foreach ($aNodesStatuses as $oStatus) {
+            if ($oStatus->iDepth > $iMax) {
+                $iMax = $oStatus->iDepth;
             }
+        }
+        return $iMax;
+    }
+}
+
+class Web
+{
+    public $aWeb;
+    public $aCross;
+    
+    public function __construct()
+    {
+        fscanf(STDIN, "%d", $this->iNbNodes);
+        for ($i=0; $i<$this->iNbNodes; ++$i) {
+            fscanf(STDIN, "%d %d", $xi, $yi);
+            (isset($this->aWeb[$xi])) ?: $this->aWeb[$xi] = [];
+            (isset($this->aWeb[$yi])) ?: $this->aWeb[$yi] = [];
+            $this->aWeb[$xi][$yi] = 1;
+            $this->aWeb[$yi][$xi] = 1;
+        }
+        
+        foreach (array_keys($this->aWeb) as $iNode) {
+            ($this->isNodeCross($iNode)) ? $this->aCross[] = $iNode : null;
         }
     }
     
-    $aIndexToRemove = array_unique($aIndexToRemove);
-    foreach ($aIndexToRemove as $index) {
-        unset($aCopyPathes[$index]);
+    public function trimWeb()
+    {
+        while (null !== ($iNode = array_shift($this->aCross))) {
+            if (!isset($this->aWeb[$iNode])) {
+                continue;
+            }
+            $this->trimCross($iNode);
+            ($this->isNodeCross($iNode)) ? $this->aCross[] = $iNode : null;
+        }
     }
-    $aPathes = array_merge($aCopyPathes, $aNewPathes);
-    return array_values($aPathes);
+    
+    public function trimCross($iNode, $iParentNode = null, $depth = 0) 
+    {
+        $aVisited = [];
+        $aChildren = $this->aWeb[$iNode];
+        //If we came from a parent, the parent is visited and the link is not a child, but the parent.
+        if (null !== $iParentNode) {
+            unset($aChildren[$iParentNode]);
+            $aVisited[$iParentNode] = new NodeStatus(false, $depth);
+        }
+        //If there's no more unvisited children, end because end of work for the branch of cross
+        if (empty($aChildren)) {
+            return new NodeStatus(true);
+        }
+        
+        foreach (array_keys($aChildren) as $iChildNode) {
+            $aVisited[$iChildNode] = $this->trimCross($iChildNode, $iNode, $depth+1);
+        }
+        
+        //Look if there is an ended path shorter than 2 other paths, to remove it.
+        foreach ($aVisited as $iChildNode => $oStatus) {
+            if (count($aVisited) <= 2) {
+                break;
+            }
+            
+            //If path is not ended, it can't be removed.
+            if (!$oStatus->isEnd()) {
+                continue;
+            }
+            
+            $iNbShorter = $this->compareStatusToVisited($oStatus, $aVisited, $iChildNode);
+            if (2 === $iNbShorter) {
+                unset($aVisited[$iChildNode]);
+                $this->removeNode($iChildNode, $iNode);
+            }
+        }
+        
+        //Check if only known paths and max length, to return value.
+        unset($aVisited[$iParentNode]);
+        $iMaxDepth = NodeStatus::findLongest($aVisited);
+        return new NodeStatus(true, $iMaxDepth+1);
+    }
+    
+    public function isNodeCross($iNode) {
+        return (count($this->aWeb[$iNode]) >= 3);
+    }
+    
+    public function removeNode($iChildNode, $iNode) 
+    {
+        $aGrandChildren = $this->aWeb[$iChildNode];
+        unset($aGrandChildren[$iNode]);
+        unset($this->aWeb[$iChildNode]);
+        unset($this->aWeb[$iNode][$iChildNode]);
+        
+        foreach (array_keys($aGrandChildren) as $iGrandChildNode) {
+            $this->removeNode($iGrandChildNode, $iChildNode);
+        }
+    }
+    
+    public function compareStatusToVisited($oStatus, $aVisited, $iChildNode)
+    {
+        $iNbShorter = 0;
+        foreach ($aVisited as $iSiblingNode => $oSiblingStatus) {
+            if ($iChildNode === $iSiblingNode || $oStatus->iDepth > $oSiblingStatus->iDepth) {
+                continue;
+            }
+            //If we find 2 shorters branch, no need to continue.
+            if (2 === ++$iNbShorter) {
+                break;
+            }
+        }
+        return $iNbShorter;
+    }
+    
+    public function answer()
+    {
+        $this->trimWeb();
+        return floor(count($this->aWeb)/2);
+    }
 }
 
-//At this start, $aPathes worth now all possible paths for this map.
-//The minimal links to get through is the number of element we can found in the row at the start of all pathes or at the end of all
-//pathes
-debug($aPathes);
-
-$aStartIntersect = call_user_func_array('array_intersect_assoc', $aPathes);
-$aReversePath = array_map('array_reverse', $aPathes);
-$aEndIntersect = call_user_func_array('array_intersect_assoc', $aReversePath);
-
-$answer = max(count($aStartIntersect), count($aEndIntersect));
-echo $answer . "\n";
-
-// Write an action using echo(). DON'T FORGET THE TRAILING \n
-// To debug (equivalent to var_dump): error_log(var_export($var, true));
-
-//echo("1\n"); // Le nombre d'étapes minimum pour propager la publicité.
+$oWeb = new Web();
+echo $oWeb->answer() . "\n";
 ?>
