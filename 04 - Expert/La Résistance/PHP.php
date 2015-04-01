@@ -77,10 +77,9 @@ class Morse
         $iLastPos = 0;
         while (false !== ($iLastPos = strpos($this->sequence, $sWord, $iLastPos))) {
             isset($this->aWordsPosition[$iLastPos]) ?: $this->aWordsPosition[$iLastPos] = [];
-            //Set it to NULL if found because we don't know if same or other words may fit correctly the sequence
             //Store them is separated array because words can be similar in morse and they have to be multiplied.
             $this->aWordsPosition[$iLastPos][] = ['word' => $sWord];
-            $iLastPos = $iLastPos + strlen($sWord);
+            $iLastPos = $iLastPos + 1;
         }
     }
 
