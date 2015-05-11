@@ -1,0 +1,1 @@
+for([x,y,i,j]=readline().split(' '),z=Math.sign;!(s='');print((b=i-x)?s+=(b>0?"W":"E"):s),j-=z(a),i-=z(b))if(a=j-y)s+=(a>0?"N":"S")
