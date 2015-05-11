@@ -1,0 +1,1 @@
+for([z,,,y,x]=eval(o="readline().split(' ')"),i=d=[];;)[a,b,c]=eval(o),++i<z?d[a]=b:(d[y]=x,print(!(h=b-d[a])||c=="LEFT"^h<0?"WAIT":"BLOCK"))
