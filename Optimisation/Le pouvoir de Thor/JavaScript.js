@@ -1,1 +1,1 @@
-for([x,y,i,j]=readline().split(' '),z=Math.sign;!(s='');print((b=i-x)?s+=(b>0?"W":"E"):s),j-=z(a),i-=z(b))if(a=j-y)s+=(a>0?"N":"S")
+for([x,y,i,j]=readline(o=(s,u,d)=>u?s+="NSWE"[(u<0)+d]:s).split(' ');z=Math.sign;j-=z(j-y),i-=z(i-x))print(o(o('',j-y,0),i-x,2))
