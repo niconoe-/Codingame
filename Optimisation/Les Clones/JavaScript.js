@@ -1,1 +1,1 @@
-for([z,,,y,d[y]]=d=eval(o="readline().split(' ')");[a,b,c]=eval(o);)0<--z?d[a]=b:print(!(h=b-d[a])||c=="LEFT"^h<0?"WAIT":"BLOCK")
+for([z,,,y,d[y]]=d=eval(o="readline().split(' ')");[a,b,c]=eval(o);)0<--z?d[a]=b:print((h=b-d[a])&&c!="LEFT"^h<0?"BLOCK":"WAIT")
