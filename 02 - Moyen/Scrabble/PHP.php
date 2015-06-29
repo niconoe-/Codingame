@@ -9,7 +9,7 @@ class Alphabet
         'k' => 5, 'l' => 1, 'm' => 3, 'n' => 1, 'o' => 1, 'p' => 3, 'q' => 10, 'r' => 1, 's' => 1, 't' => 1,
         'u' => 1, 'v' => 4, 'w' => 4, 'x' => 8, 'y' => 4, 'z' => 10,
     );
-    
+
     public static function getWordValue($word)
     {
         $aWordLetters = str_split(strtolower($word));
@@ -23,26 +23,26 @@ class Alphabet
 
 class Dictionnary
 {
-    
+
     public $aDico = array();
-    
+
     public function addWord($word)
     {
         $value = Alphabet::getWordValue($word);
-        
+
         //Only the first word has to be returned so if another word has the same value, don't add it.
         if (!isset($this->aDico[$word])) {
             $this->aDico[$word] = array('value' => $value, 'pos' => count($this->aDico));
         }
         return $this;
     }
-    
+
     public function sortDictionnary()
     {
         uasort($this->aDico, array($this, '_sort'));
         return $this;
     }
-    
+
     protected function _sort($a, $b)
     {
         if ($a['value'] === $b['value']) {
@@ -53,12 +53,12 @@ class Dictionnary
     	}
     	return ($a['value'] < $b['value'] ? 1 : -1);
     }
-    
+
     public function findMostValuable($letters)
     {
         //Sort words from the dictionnary by the most valuable first
         $this->sortDictionnary();
-        
+
         //For each word, try to know if we can write it depending on the letters the player owns.
         foreach (array_keys($this->aDico) as $sWord) {
             $aAvailableLetters = str_split($letters); //reset the available letter for each word to test.
@@ -79,8 +79,10 @@ class Dictionnary
                 return $sWord;
             }
         }
+
+        return '';
     }
-    
+
 }
 
 //Start programm

@@ -1,11 +1,10 @@
-﻿# Auto-generated code below aims at helping you parse
-# the standard input according to the problem statement.
+﻿#!/usr/bin/env bash
 
 read N
 ARRAY=()
 for (( i=0; i<N; i++ )); do
     read Pi
-    ARRAY[i]=$Pi
+    ARRAY[i]=${Pi}
 done
 
 readarray -t SARRAY < <(for a in "${ARRAY[@]}"; do echo "$a"; done | sort -n)
@@ -14,11 +13,11 @@ prev=${SARRAY[0]}
 for (( i=1; i<N; i++ )); do
     curr=${SARRAY[i]}
     diff=$(($curr-$prev))
-    if [ $diff -lt $minDiff ]
+    if [ ${diff} -lt ${minDiff} ]
     then
-        minDiff=$diff
+        minDiff=${diff}
     fi
-    prev=$curr
+    prev=${curr}
 done
 
-echo $minDiff
+echo ${minDiff}
