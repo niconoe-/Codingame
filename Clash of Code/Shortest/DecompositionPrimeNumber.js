@@ -1,0 +1,1 @@
+for(i=2,n=-(-readline(s=''));n>1;)if(n%i){i++}else{s+=i+' ';n/=i}print(s.trim())

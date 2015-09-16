@@ -1,0 +1,1 @@
+o=readline;w=o(n=-(-o()));n%=w.length;print(w.substr(n)+w.substr(0,n))

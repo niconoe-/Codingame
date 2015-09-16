@@ -1,0 +1,1 @@
+<? $a=array_count_values(str_split(str_replace(' ','',stream_get_line(STDIN,512,"\n"))));rsort($a);echo reset($a);
