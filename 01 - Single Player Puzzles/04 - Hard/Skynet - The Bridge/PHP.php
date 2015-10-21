@@ -1,25 +1,19 @@
 <?php
-namespace Skynet_Le_Pont;
-
+namespace SkyNet_The_Bridge;
 define('DEBUG', true);
 function debug() {if (!DEBUG) return; foreach (func_get_args() as $sArgDebug) error_log(var_export($sArgDebug, true));}
-
-define('SPEED', "SPEED\n");
-define('SLOW', "SLOW\n");
-define('JUMP', "JUMP\n");
-define('WAIT', "WAIT\n");
-define('UP', "UP\n");
-define('DOWN', "DOWN\n");
 
 /**
  * Class Main
  *
- * @package   Skynet_Le_Pont
+ * @package   SkyNet_The_Bridge
  * @author Nicolas (niconoe) Giraud <nicolas.giraud.dev@gmail.com>
  * @copyright Copyright © 2015, Nicolas Giraud
  */
 class Main
 {
+    public static $aCommands = ['SPEED', 'WAIT', 'JUMP', 'SLOW', 'UP', 'DOWN'];
+
     /** @var int $nbBikes the amount of motorbikes to control */
     public static $nbBikes;
 
@@ -27,23 +21,19 @@ class Main
     public static $nbBikesToSurvive;
 
     /**
-     * @var array $aLines Lanes of the road.
-     *                    A dot character . represents a safe space and a zero 0 represents a hole in the road.
+     * @var string[] $aRoads Lanes of the road.
+     * A dot character . represents a safe space and a zero 0 represents a hole in the road.
      */
-    public static $aLines = [];
+    public static $aRoads = [];
 
     /** @var int $iSpeed the motorbikes' speed */
     public static $iSpeed;
 
+    /** @var Motorbike[] List of motorbikes in game */
     public static $aBikes = [];
 
-    public static $x;
-
-    public static $xLastHole = 0;
-
-
-    //public static $test = [WAIT, WAIT, JUMP, SPEED, JUMP, WAIT];
-
+    /** @var Solver Object that contains each step to the solution */
+    public static $oSolver;
 
     public static function run()
     {
@@ -60,8 +50,7 @@ class Main
 
         //Road is 4 lanes width
         for ($i=0; $i<4; ++$i) {
-            fscanf(STDIN, '%s', self::$aLines[$i]);
-            self::$xLastHole = max(self::$xLastHole, strrpos(self::$aLines[$i], '0'));
+            fscanf(STDIN, '%s', self::$aRoads[$i]);
         }
     }
 
@@ -69,49 +58,23 @@ class Main
     {
         fscanf(STDIN, '%d', self::$iSpeed);
         for ($i=0; $i<self::$nbBikes; ++$i) {
-            $oMotorBikes = new Motorbike();
-            if ($oMotorBikes->bIsActive) {
-                self::$aBikes[] = $oMotorBikes;
-                self::$x = $oMotorBikes->x;
-            }
+            self::$aBikes[] = new Motorbike();
         }
 
-        debug('test', self::$xLastHole);
-        echo SPEED;
-        return;
-
-    }
-
-    public static function findNextHoles()
-    {
-        $aNextHoleByLines = [];
-        foreach (self::$aLines as $sLine) {
-            $aNextHoleByLines[] = strpos($sLine, '0', self::$x);
-        }
-        $aNextHoleByLines = array_filter($aNextHoleByLines);
-        return $aNextHoleByLines;
-    }
-
-    public static function calculateJumpSize($aNextHoles)
-    {
-        $aJumps = [];
-        foreach ($aNextHoles as $iLines => $xHole) {
-            $nb = 0;
-            do {
-                ++$nb;
-                $aJumps[$iLines] = $nb;
-                $i = $xHole + $nb;
-            } while (self::$aLines[$iLines][$i] === '0');
+        //If we don't have a solution, let's find it!
+        if (self::$oSolver === null) {
+            self::$oSolver = new Solver();
         }
 
-        return (max($aJumps) + 1);
+        //We have the solution now, so display last step
+        self::$oSolver->echoAndRemoveStep();
     }
 }
 
 /**
  * Class Motorbike
  *
- * @package   Skynet_Le_Pont
+ * @package   SkyNet_The_Bridge
  * @author Nicolas (niconoe) Giraud <nicolas.giraud.dev@gmail.com>
  * @copyright Copyright © 2015, Nicolas Giraud
  */
@@ -132,20 +95,212 @@ class Motorbike
     }
 }
 
-
-class Possibility
+class Context
 {
-    public $x;
-    public $aY;
-    public $action;
+    /** @var int $iSpeed */
+    public $iSpeed;
 
-    public function __construct($x, $aMotorbikes)
+    /** @var Motorbike[] $aBikes */
+    public $aBikes;
+
+    public function __construct($iSpeed, $aBikes)
     {
-
+        $this->iSpeed = $iSpeed;
+        $this->aBikes = $aBikes;
     }
 
+    public function __clone()
+    {
+        $newBikes = [];
+        foreach ($this->aBikes as $oBike) {
+            $newBikes[] = clone $oBike;
+        }
+        $this->aBikes = $newBikes;
+    }
 
+    /**
+     * Returns TRUE if at least one bike reach the end of the road.
+     * @return bool
+     */
+    public function isDone()
+    {
+        foreach ($this->aBikes as $oBike) {
+            if ($oBike->x > strlen(Main::$aRoads[$oBike->y])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns TRUE if enough active bikes in the current context.
+     * @return bool
+     */
+    public function isValid()
+    {
+        $nbActives = 0;
+        foreach ($this->aBikes as $oBike) {
+            !$oBike->bIsActive ?: $nbActives++;
+        }
+
+        return $nbActives >= Main::$nbBikesToSurvive;
+    }
+
+    /**
+     * Returns TRUE if there's a bike on top road on the current context
+     * @return bool
+     */
+    public function existsTopBike()
+    {
+        foreach ($this->aBikes as $oBike) {
+            if ($oBike->bIsActive && $oBike->y === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns TRUE if there's a bike on bottom road on the current context
+     * @return bool
+     */
+    public function existsBottomBike()
+    {
+        foreach ($this->aBikes as $oBike) {
+            if ($oBike->bIsActive && $oBike->y === 3) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
+class Solver
+{
+    /** @var string[] $aSteps. List of steps to follow to find the solution. */
+    public $aSteps = [];
+
+    public function __construct()
+    {
+        $oContext = new Context(Main::$iSpeed, Main::$aBikes);
+        $this->solve($oContext);
+    }
+
+    public function solve(Context $oContext)
+    {
+        if ($oContext->isDone()) {
+            return true;
+        }
+
+        //Try all possible command to find a solution.
+        foreach (Main::$aCommands as $sCommand) {
+            //We just build a new context trying a command from a previous context.
+            $oMovedContext = $this->move($oContext, $sCommand);
+
+            //If this new context is valid, try to solve the puzzle from this new context.
+            if ($oMovedContext->isValid()) {
+                if ($this->solve($oMovedContext)) {
+                    $this->aSteps[] = $sCommand;
+                    return true;
+                }
+            } else {
+            }
+            //Otherwise, if this new context is not valid or impossible to solve, try another command.
+        }
+
+        return false;
+    }
+
+    public function move(Context $oContext, $sCommand)
+    {
+        $oMovedContext = clone $oContext;
+
+        //Speed commands management
+        if ($sCommand === 'SPEED') {
+            $oMovedContext->iSpeed++;
+        } elseif ($sCommand === 'SLOW' && $oMovedContext->iSpeed > 1) {
+            $oMovedContext->iSpeed--;
+        }
+
+        //Movement commands
+        foreach ($oMovedContext->aBikes as $oBike) {
+            if (!$oBike->bIsActive) {
+                continue;
+            }
+
+            if ($sCommand === 'SPEED' || $sCommand === 'SLOW' || $sCommand === 'WAIT') {
+                $oBike->bIsActive = $this->checkAllGround($oBike, $oMovedContext->iSpeed, 0);
+            } elseif ($sCommand === 'JUMP') {
+                $oBike->bIsActive = $this->checkGround($oBike, $oMovedContext->iSpeed);
+            } elseif ($sCommand === 'UP') {
+                if (!$oContext->existsTopBike()) {
+                    $oBike->bIsActive = $this->canChangeRoad($oBike, $oMovedContext->iSpeed, 'UP');
+                    !$oBike->bIsActive ?: $oBike->y--;
+                } else {
+                    $oBike->bIsActive = $this->checkAllGround($oBike, $oMovedContext->iSpeed, 0);
+                }
+            } elseif ($sCommand === 'DOWN') {
+                if (!$oContext->existsBottomBike()) {
+                    $oBike->bIsActive = $this->canChangeRoad($oBike, $oMovedContext->iSpeed, 'DOWN');
+                    !$oBike->bIsActive ?: $oBike->y++;
+                } else {
+                    $oBike->bIsActive = $this->checkAllGround($oBike, $oMovedContext->iSpeed, 0);
+                }
+            }
+
+            if ($oBike->bIsActive) {
+                $oBike->x += $oMovedContext->iSpeed;
+            }
+        }
+
+        return $oMovedContext;
+    }
+
+    public function canChangeRoad(Motorbike $oBike, $iSpeed, $sDirection)
+    {
+        $iDelta = ($sDirection === 'UP') ? -1 : 1;
+        return ($this->checkAllGround($oBike, $iSpeed-1, 0) && $this->checkAllGround($oBike, $iSpeed, $iDelta));
+    }
+
+    public function checkGround(Motorbike $oBike, $iSpeed)
+    {
+        //Are we reaching the end of the road?
+        $bEndOfRoad = ($oBike->x + $iSpeed >= strlen(Main::$aRoads[$oBike->y]));
+
+        //Are we on the ground?
+        $bOnGround = (Main::$aRoads[$oBike->y]{$oBike->x + $iSpeed} === '.');
+
+        return $bEndOfRoad || $bOnGround;
+    }
+
+    public function checkAllGround(Motorbike $oBike, $iSpeed, $yDelta)
+    {
+        for ($i = $oBike->x + 1; $i <= $oBike->x + $iSpeed; ++$i) {
+
+            //Are we reaching the end of the road?
+            if ($i >= strlen(Main::$aRoads[$oBike->y + $yDelta])) {
+                return true;
+            }
+
+            //Are we on the ground?
+            if (Main::$aRoads[$oBike->y + $yDelta]{$i} === '0') {
+               return false;
+            }
+        }
+
+        //All positions are ok for this bike on this road.
+        return true;
+    }
+
+    public function echoAndRemoveStep()
+    {
+        if (empty($this->aSteps)) {
+            return;
+        }
+        $sCurrentStep = array_pop($this->aSteps);
+        echo $sCurrentStep . PHP_EOL;
+    }
 }
 
 Main::run();
-?>
