@@ -1,0 +1,1 @@
+[n,r]=readline(i=1,s=1).split(' ');for(;n-->1;s+=' '+(i*=r));print(s)

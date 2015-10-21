@@ -1,0 +1,1 @@
+o=readline;print(o().split(' ').sort((a,b)=>a-b).join(' '))
