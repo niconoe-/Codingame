@@ -95,6 +95,13 @@ class Motorbike
     }
 }
 
+/**
+ * Class Context
+ *
+ * @package   SkyNet_The_Bridge
+ * @author Nicolas (niconoe) Giraud <nicolas.giraud.dev@gmail.com>
+ * @copyright Copyright © 2015, Nicolas Giraud
+ */
 class Context
 {
     /** @var int $iSpeed */
@@ -103,12 +110,29 @@ class Context
     /** @var Motorbike[] $aBikes */
     public $aBikes;
 
+    /** @var int $iMaxNbBikesToSurvive */
+    public $iMaxNbBikesToSurvive;
+
+    /**
+     * Constructor of Context
+     * @param int $iSpeed The speed value in this context
+     * @param Motorbike[] $aBikes List of Motorbikes with their values in this context
+     */
     public function __construct($iSpeed, $aBikes)
     {
         $this->iSpeed = $iSpeed;
         $this->aBikes = $aBikes;
+        foreach ($this->aBikes as $oBike) {
+            if ($oBike->bIsActive) {
+                $this->iMaxNbBikesToSurvive++;
+            }
+        }
     }
 
+    /**
+     * Clone for Context.
+     * By Cloning the context, we need to clone each bikes to avoid accessing to references of the original context.
+     */
     public function __clone()
     {
         $newBikes = [];
@@ -143,7 +167,7 @@ class Context
             !$oBike->bIsActive ?: $nbActives++;
         }
 
-        return $nbActives >= Main::$nbBikesToSurvive;
+        return $nbActives >= $this->iMaxNbBikesToSurvive;
     }
 
     /**
@@ -173,20 +197,54 @@ class Context
         }
         return false;
     }
+
+    /**
+     * Returns TRUE if we can have a less strong constraint on nb bikes to save. Also reduce this constraint in current
+     * context.
+     * @return bool
+     */
+    public function reduceLimitation()
+    {
+        if ($this->iMaxNbBikesToSurvive > Main::$nbBikesToSurvive) {
+            $this->iMaxNbBikesToSurvive--;
+            return true;
+        }
+        return false;
+    }
 }
 
-
+/**
+ * Class Solver
+ *
+ * @package   SkyNet_The_Bridge
+ * @author Nicolas (niconoe) Giraud <nicolas.giraud.dev@gmail.com>
+ * @copyright Copyright © 2015, Nicolas Giraud
+ */
 class Solver
 {
     /** @var string[] $aSteps. List of steps to follow to find the solution. */
     public $aSteps = [];
 
+    /**
+     * Solver constructor.
+     * The Solver is the object that will test each possibilities by trying to keep the most number of Motorbike
+     * active. If not possible, reduce the number of Motorbike active we can have, without going under the limitation.
+     */
     public function __construct()
     {
         $oContext = new Context(Main::$iSpeed, Main::$aBikes);
-        $this->solve($oContext);
+
+        //Try to solve the solution with higher constraint. If not possible, reduce the constraint step by step.
+        do {
+            $bSolutionFound = $this->solve($oContext);
+        } while (false === $bSolutionFound && $oContext->reduceLimitation());
     }
 
+    /**
+     * Try each possibilities based on a Context
+     * @param Context $oContext The context of working to find a solution
+     * @return bool TRUE if a solution has been found, FALSE otherwise.
+     */
     public function solve(Context $oContext)
     {
         if ($oContext->isDone()) {
@@ -204,7 +262,6 @@ class Solver
                     $this->aSteps[] = $sCommand;
                     return true;
                 }
-            } else {
             }
             //Otherwise, if this new context is not valid or impossible to solve, try another command.
         }
@@ -212,6 +269,12 @@ class Solver
         return false;
     }
 
+    /**
+     * Do a command in a context. If this move is valid, it may be part of the solution.
+     * @param Context $oContext The context we're on
+     * @param string $sCommand The command to apply on the context
+     * @return Context The new Context with the command applied on.
+     */
     public function move(Context $oContext, $sCommand)
     {
         $oMovedContext = clone $oContext;
@@ -257,12 +320,25 @@ class Solver
         return $oMovedContext;
     }
 
+    /**
+     * Tells if a bike can go UP or DOWN.
+     * @param Motorbike $oBike The bike we're analyzing
+     * @param int $iSpeed The speed of the bike we have to check.
+     * @param string $sDirection "UP" or "DOWN"
+     * @return bool TRUE if the bike can move on the wanted direction. False otherwise.
+     */
     public function canChangeRoad(Motorbike $oBike, $iSpeed, $sDirection)
     {
         $iDelta = ($sDirection === 'UP') ? -1 : 1;
         return ($this->checkAllGround($oBike, $iSpeed-1, 0) && $this->checkAllGround($oBike, $iSpeed, $iDelta));
     }
 
+    /**
+     * Tells if a bike landing is on the ground or end of the road.
+     * @param Motorbike $oBike The bike we're analyzing
+     * @param int $iSpeed The speed of the bike we have to check.
+     * @return bool TRUE if the bike's landing is on the ground or end of the road reached. False otherwise.
+     */
     public function checkGround(Motorbike $oBike, $iSpeed)
     {
         //Are we reaching the end of the road?
@@ -274,6 +350,13 @@ class Solver
         return $bEndOfRoad || $bOnGround;
     }
 
+    /**
+     * Tells if a bike pass through all ground road (=there's no hole in the bike's one step journey).
+     * @param Motorbike $oBike The bike we're analyzing
+     * @param int $iSpeed The speed of the bike we have to check.
+     * @param int $yDelta The moving direction on the road. If -1, get UP. If 1, get DOWN.
+     * @return bool TRUE if the bike's one step journey doesn't have holes or end of the road reached. False otherwise.
+     */
     public function checkAllGround(Motorbike $oBike, $iSpeed, $yDelta)
     {
         for ($i = $oBike->x + 1; $i <= $oBike->x + $iSpeed; ++$i) {
@@ -285,7 +368,7 @@ class Solver
 
             //Are we on the ground?
             if (Main::$aRoads[$oBike->y + $yDelta]{$i} === '0') {
-               return false;
+                return false;
             }
         }
 
@@ -293,6 +376,9 @@ class Solver
         return true;
     }
 
+    /**
+     * Display a step and remove it for the whole solution.
+     */
     public function echoAndRemoveStep()
     {
         if (empty($this->aSteps)) {
