@@ -1,1 +1,1 @@
-r=readline;print(+r(r(o=Math.abs)).split(' ').sort((a,b)=>o(a)<o(b)?-1:o(a)>o(b)||a<b)[0])
+r=readline;print(+r(r()).split(' ').sort((a,b)=>a*a<b*b?-1:a*a>b*b|a<b)[0])
